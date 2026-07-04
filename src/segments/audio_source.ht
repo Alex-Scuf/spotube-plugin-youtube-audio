@@ -17,12 +17,14 @@ class Converter {
     }).toList()
   }
 
-  // Приводим длительность к секундам, независимо от того, в чём она
-  // изначально закодирована (мс или сек)
-  static fun toSeconds(value: any) -> num {
-    if (value == null) return 0
-    final v = value as num
-    return v > 36000 ? v / 1000 : v
+  static fun toSeconds(value) -> num {
+    if (value == null) {
+      return 0
+    }
+    if (value > 36000) {
+      return value / 1000
+    }
+    return value
   }
 }
 
@@ -39,30 +41,29 @@ class AudioSourceEndpoint {
     ]
   }
 
-  // Пересортировываем кандидатов: те, что близки по длительности к
-  // оригиналу (в пределах 3 сек), остаются в исходном порядке релевантности;
-  // всё остальное отодвигается назад пропорционально расхождению.
+  // Разбиваем результаты на "близкие по длительности" (оригинальный порядок
+  // релевантности сохраняется) и "далёкие" (отодвигаются в конец списка)
   fun rankByDuration(rawResults: List, targetDuration: num) -> List {
     final converted = Converter.toSpotubeMatchObject(rawResults)
+    var close = []
+    var far = []
 
-    var indexed = []
     for (var i = 0; i < converted.length; i++) {
-      indexed.add({ "item": converted[i], "originalIndex": i })
+      final item = converted[i]
+      var duration = Converter.toSeconds(item["duration"])
+      var diff = duration - targetDuration
+      if (diff < 0) {
+        diff = 0 - diff
+      }
+      if (diff <= 3) {
+        close.add(item)
+      } else {
+        far.add(item)
+      }
     }
 
-    indexed.sort((a, b) {
-      final da = (Converter.toSeconds(a["item"]["duration"]) - targetDuration).abs()
-      final db = (Converter.toSeconds(b["item"]["duration"]) - targetDuration).abs()
-      final closeA = da <= 3
-      final closeB = db <= 3
-
-      if (closeA && closeB) return a["originalIndex"] - b["originalIndex"]
-      if (closeA != closeB) return closeA ? -1 : 1
-      if (da == db) return a["originalIndex"] - b["originalIndex"]
-      return da < db ? -1 : 1
-    })
-
-    return indexed.map((e) => e["item"]).toList()
+    close.addAll(far)
+    return close
   }
 
   fun matches(track: Map) -> List {
