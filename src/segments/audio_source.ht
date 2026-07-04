@@ -27,7 +27,6 @@ class Converter {
     return value
   }
 
-  // Предпочитаемые варианты — явно помечены как чистое аудио/текст песни
   static fun looksPreferred(title) -> bool {
     if (title == null) {
       return false
@@ -54,7 +53,6 @@ class Converter {
     return false
   }
 
-  // Видеоклипы — явно отодвигаем вниз
   static fun looksLikeVideoClip(title) -> bool {
     if (title == null) {
       return false
@@ -77,6 +75,45 @@ class Converter {
     }
     return false
   }
+
+  // Простая сортировка по длине заголовка (короче — выше), без .sort()
+  static fun sortByTitleLength(items: List) -> List {
+    final n = items.length
+    var used = []
+    for (var i = 0; i < n; i++) {
+      used.add(false)
+    }
+
+    var result = []
+    for (var k = 0; k < n; k++) {
+      var minIndex = -1
+      var minLen = -1
+
+      for (var j = 0; j < n; j++) {
+        if (used[j] == false) {
+          var len = 0
+          if (items[j]["title"] != null) {
+            len = items[j]["title"].length
+          }
+
+          if (minIndex == -1) {
+            minIndex = j
+            minLen = len
+          } else {
+            if (len < minLen) {
+              minIndex = j
+              minLen = len
+            }
+          }
+        }
+      }
+
+      used[minIndex] = true
+      result.add(items[minIndex])
+    }
+
+    return result
+  }
 }
 
 class AudioSourceEndpoint {
@@ -92,10 +129,6 @@ class AudioSourceEndpoint {
     ]
   }
 
-  // Три уровня приоритета:
-  // 1) явно помечено как lyrics/audio — самый желанный вариант
-  // 2) ничем не помечено (нейтральное название) — второй по приоритету
-  // 3) явно помечено как video/clip — в конец списка
   fun rankResults(rawResults: List, targetDuration: num) -> List {
     final converted = Converter.toSpotubeMatchObject(rawResults)
     var tierPreferred = []
@@ -116,6 +149,10 @@ class AudioSourceEndpoint {
         }
       }
     }
+
+    tierPreferred = Converter.sortByTitleLength(tierPreferred)
+    tierNeutral = Converter.sortByTitleLength(tierNeutral)
+    tierClip = Converter.sortByTitleLength(tierClip)
 
     tierPreferred.addAll(tierNeutral)
     tierPreferred.addAll(tierClip)
