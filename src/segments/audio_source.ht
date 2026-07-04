@@ -26,6 +26,29 @@ class Converter {
     }
     return value
   }
+
+  static fun looksLikeVideoClip(title) -> bool {
+    if (title == null) {
+      return false
+    }
+    final lower = title.toLowerCase()
+    if (lower.contains("official video")) {
+      return true
+    }
+    if (lower.contains("official music video")) {
+      return true
+    }
+    if (lower.contains("music video")) {
+      return true
+    }
+    if (lower.contains("(clip)")) {
+      return true
+    }
+    if (lower.contains("[clip]")) {
+      return true
+    }
+    return false
+  }
 }
 
 class AudioSourceEndpoint {
@@ -41,12 +64,11 @@ class AudioSourceEndpoint {
     ]
   }
 
-  // Разбиваем результаты на "близкие по длительности" (оригинальный порядок
-  // релевантности сохраняется) и "далёкие" (отодвигаются в конец списка)
   fun rankByDuration(rawResults: List, targetDuration: num) -> List {
     final converted = Converter.toSpotubeMatchObject(rawResults)
-    var close = []
-    var far = []
+    var tierClose = []
+    var tierFar = []
+    var tierClip = []
 
     for (var i = 0; i < converted.length; i++) {
       final item = converted[i]
@@ -55,15 +77,21 @@ class AudioSourceEndpoint {
       if (diff < 0) {
         diff = 0 - diff
       }
-      if (diff <= 3) {
-        close.add(item)
+
+      if (Converter.looksLikeVideoClip(item["title"])) {
+        tierClip.add(item)
       } else {
-        far.add(item)
+        if (diff <= 3) {
+          tierClose.add(item)
+        } else {
+          tierFar.add(item)
+        }
       }
     }
 
-    close.addAll(far)
-    return close
+    tierClose.addAll(tierFar)
+    tierClose.addAll(tierClip)
+    return tierClose
   }
 
   fun matches(track: Map) -> List {
@@ -71,9 +99,14 @@ class AudioSourceEndpoint {
     final hasISRC = track["isrc"] != null && track["isrc"].isNotEmpty;
     final targetDuration = Converter.toSeconds(track["duration"])
 
+    std.print("DEBUG target duration: ${targetDuration}, raw: ${track["duration"]}")
+
     return yt.search(
       hasISRC ? track["isrc"] : "${track["name"]} ${artists}"
     ).then((res){
+      for (var i = 0; i < res.length; i++) {
+        std.print("DEBUG candidate ${i}: title=${res[i]["title"]}, duration=${res[i]["duration"]}")
+      }
       if(res.isEmpty && hasISRC) {
         return yt.search(
           "${track["name"]} ${artists}"
@@ -96,26 +129,6 @@ class AudioSourceEndpoint {
       }).toList()
     })
   }
-
-
-fun matches(track: Map) -> List {
-    final artists = track["artists"].map((a)=> a["name"]).join(", ")
-    final hasISRC = track["isrc"] != null && track["isrc"].isNotEmpty;
-    final targetDuration = Converter.toSeconds(track["duration"])
-
-    return yt.search(
-      hasISRC ? track["isrc"] : "${track["name"]} ${artists}"
-    ).then((res){
-      if(res.isEmpty && hasISRC) {
-        return yt.search(
-          "${track["name"]} ${artists}"
-        ).then((res)=> rankByDuration(res, targetDuration))
-      }
-      return rankByDuration(res, targetDuration)
-    })
-  }
-
-
 }
 
 export { AudioSourceEndpoint }
