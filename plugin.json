@@ -1,6 +1,6 @@
 {
   "version": "1.0.1",
-  "name": "YouTube Audio",
+  "name": "YouTube Audio Fixed",
   "author": "Kingkor Roy Tirtho",
   "description": "YouTube audio source plugin for Spotube",
   "entryPoint": "YouTubeAudioSourcePlugin",
