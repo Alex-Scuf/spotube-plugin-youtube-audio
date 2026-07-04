@@ -96,6 +96,26 @@ class AudioSourceEndpoint {
       }).toList()
     })
   }
+
+
+fun matches(track: Map) -> List {
+    final artists = track["artists"].map((a)=> a["name"]).join(", ")
+    final hasISRC = track["isrc"] != null && track["isrc"].isNotEmpty;
+    final targetDuration = Converter.toSeconds(track["duration"])
+
+    return yt.search(
+      hasISRC ? track["isrc"] : "${track["name"]} ${artists}"
+    ).then((res){
+      if(res.isEmpty && hasISRC) {
+        return yt.search(
+          "${track["name"]} ${artists}"
+        ).then((res)=> rankByDuration(res, targetDuration))
+      }
+      return rankByDuration(res, targetDuration)
+    })
+  }
+
+
 }
 
 export { AudioSourceEndpoint }
