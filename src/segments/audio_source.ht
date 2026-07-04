@@ -26,29 +26,6 @@ class Converter {
     }
     return value
   }
-
-  static fun looksLikeVideoClip(title) -> bool {
-    if (title == null) {
-      return false
-    }
-    final lower = title.toLowerCase()
-    if (lower.contains("official video")) {
-      return true
-    }
-    if (lower.contains("official music video")) {
-      return true
-    }
-    if (lower.contains("music video")) {
-      return true
-    }
-    if (lower.contains("(clip)")) {
-      return true
-    }
-    if (lower.contains("[clip]")) {
-      return true
-    }
-    return false
-  }
 }
 
 class AudioSourceEndpoint {
@@ -64,41 +41,30 @@ class AudioSourceEndpoint {
     ]
   }
 
-  // ВРЕМЕННО (для диагностики): исключаем всё, что не близко по длительности,
-  // вместо того чтобы просто отодвигать в конец списка
-  fun rankByDuration(rawResults: List, targetDuration: num) -> List {
-    final converted = Converter.toSpotubeMatchObject(rawResults)
-    var strictMatches = []
-
-    for (var i = 0; i < converted.length; i++) {
-      final item = converted[i]
-      var duration = Converter.toSeconds(item["duration"])
-      var diff = duration - targetDuration
-      if (diff < 0) {
-        diff = 0 - diff
-      }
-      if (diff <= 5) {
-        strictMatches.add(item)
-      }
-    }
-
-    return strictMatches
-  }
-
   fun matches(track: Map) -> List {
     final artists = track["artists"].map((a)=> a["name"]).join(", ")
     final hasISRC = track["isrc"] != null && track["isrc"].isNotEmpty;
     final targetDuration = Converter.toSeconds(track["duration"])
+    final rawTarget = track["duration"]
 
     return yt.search(
       hasISRC ? track["isrc"] : "${track["name"]} ${artists}"
     ).then((res){
-      if(res.isEmpty && hasISRC) {
-        return yt.search(
-          "${track["name"]} ${artists}"
-        ).then((res)=> rankByDuration(res, targetDuration))
+      var debugResults = []
+      for (var i = 0; i < res.length; i++) {
+        if (i < 3) {
+          final rawCandidate = res[i]["duration"]
+          debugResults.add({
+            "id": res[i]["id"],
+            "title": res[i]["title"],
+            "artists": [res[i]["author"]],
+            "duration": res[i]["duration"],
+            "thumbnail": res[i]["thumbnail"],
+            "externalUri": "https://youtube.com/watch?v=${res[i]["id"]}#DEBUG_rawTarget=${rawTarget}_rawCand=${rawCandidate}",
+          }.toJson())
+        }
       }
-      return rankByDuration(res, targetDuration)
+      return debugResults
     })
   }
 
