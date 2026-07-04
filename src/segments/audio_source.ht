@@ -99,20 +99,27 @@ class AudioSourceEndpoint {
     final hasISRC = track["isrc"] != null && track["isrc"].isNotEmpty;
     final targetDuration = Converter.toSeconds(track["duration"])
 
-    std.print("DEBUG target duration: ${targetDuration}, raw: ${track["duration"]}")
-
     return yt.search(
       hasISRC ? track["isrc"] : "${track["name"]} ${artists}"
     ).then((res){
+      var debugText = "TARGET=${targetDuration} | "
       for (var i = 0; i < res.length; i++) {
-        std.print("DEBUG candidate ${i}: title=${res[i]["title"]}, duration=${res[i]["duration"]}")
+        if (i < 5) {
+          debugText = debugText + "[${res[i]["duration"]}s: ${res[i]["title"]}] "
+        }
       }
-      if(res.isEmpty && hasISRC) {
-        return yt.search(
-          "${track["name"]} ${artists}"
-        ).then((res)=> rankByDuration(res, targetDuration))
-      }
-      return rankByDuration(res, targetDuration)
+
+      var debugResult = []
+      debugResult.add({
+        "id": res[0]["id"],
+        "title": debugText,
+        "artists": [res[0]["author"]],
+        "duration": res[0]["duration"],
+        "thumbnail": res[0]["thumbnail"],
+        "externalUri": "https://youtube.com/watch?v=${res[0]["id"]}",
+      }.toJson())
+
+      return debugResult
     })
   }
 
