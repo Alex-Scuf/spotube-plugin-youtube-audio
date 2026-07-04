@@ -64,11 +64,11 @@ class AudioSourceEndpoint {
     ]
   }
 
+  // ВРЕМЕННО (для диагностики): исключаем всё, что не близко по длительности,
+  // вместо того чтобы просто отодвигать в конец списка
   fun rankByDuration(rawResults: List, targetDuration: num) -> List {
     final converted = Converter.toSpotubeMatchObject(rawResults)
-    var tierClose = []
-    var tierFar = []
-    var tierClip = []
+    var strictMatches = []
 
     for (var i = 0; i < converted.length; i++) {
       final item = converted[i]
@@ -77,21 +77,12 @@ class AudioSourceEndpoint {
       if (diff < 0) {
         diff = 0 - diff
       }
-
-      if (Converter.looksLikeVideoClip(item["title"])) {
-        tierClip.add(item)
-      } else {
-        if (diff <= 3) {
-          tierClose.add(item)
-        } else {
-          tierFar.add(item)
-        }
+      if (diff <= 5) {
+        strictMatches.add(item)
       }
     }
 
-    tierClose.addAll(tierFar)
-    tierClose.addAll(tierClip)
-    return tierClose
+    return strictMatches
   }
 
   fun matches(track: Map) -> List {
@@ -102,24 +93,12 @@ class AudioSourceEndpoint {
     return yt.search(
       hasISRC ? track["isrc"] : "${track["name"]} ${artists}"
     ).then((res){
-      var debugText = "TARGET=${targetDuration} | "
-      for (var i = 0; i < res.length; i++) {
-        if (i < 5) {
-          debugText = debugText + "[${res[i]["duration"]}s: ${res[i]["title"]}] "
-        }
+      if(res.isEmpty && hasISRC) {
+        return yt.search(
+          "${track["name"]} ${artists}"
+        ).then((res)=> rankByDuration(res, targetDuration))
       }
-
-      var debugResult = []
-      debugResult.add({
-        "id": res[0]["id"],
-        "title": debugText,
-        "artists": [res[0]["author"]],
-        "duration": res[0]["duration"],
-        "thumbnail": res[0]["thumbnail"],
-        "externalUri": "https://youtube.com/watch?v=${res[0]["id"]}",
-      }.toJson())
-
-      return debugResult
+      return rankByDuration(res, targetDuration)
     })
   }
 
