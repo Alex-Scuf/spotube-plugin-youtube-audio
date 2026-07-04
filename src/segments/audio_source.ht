@@ -26,6 +26,57 @@ class Converter {
     }
     return value
   }
+
+  // Предпочитаемые варианты — явно помечены как чистое аудио/текст песни
+  static fun looksPreferred(title) -> bool {
+    if (title == null) {
+      return false
+    }
+    final lower = title.toLowerCase()
+    if (lower.contains("(lyrics)")) {
+      return true
+    }
+    if (lower.contains("[lyrics]")) {
+      return true
+    }
+    if (lower.contains("lyric video")) {
+      return true
+    }
+    if (lower.contains("(audio)")) {
+      return true
+    }
+    if (lower.contains("[audio]")) {
+      return true
+    }
+    if (lower.contains("official audio")) {
+      return true
+    }
+    return false
+  }
+
+  // Видеоклипы — явно отодвигаем вниз
+  static fun looksLikeVideoClip(title) -> bool {
+    if (title == null) {
+      return false
+    }
+    final lower = title.toLowerCase()
+    if (lower.contains("official video")) {
+      return true
+    }
+    if (lower.contains("official music video")) {
+      return true
+    }
+    if (lower.contains("music video")) {
+      return true
+    }
+    if (lower.contains("(clip)")) {
+      return true
+    }
+    if (lower.contains("[clip]")) {
+      return true
+    }
+    return false
+  }
 }
 
 class AudioSourceEndpoint {
@@ -41,30 +92,50 @@ class AudioSourceEndpoint {
     ]
   }
 
+  // Три уровня приоритета:
+  // 1) явно помечено как lyrics/audio — самый желанный вариант
+  // 2) ничем не помечено (нейтральное название) — второй по приоритету
+  // 3) явно помечено как video/clip — в конец списка
+  fun rankResults(rawResults: List, targetDuration: num) -> List {
+    final converted = Converter.toSpotubeMatchObject(rawResults)
+    var tierPreferred = []
+    var tierNeutral = []
+    var tierClip = []
+
+    for (var i = 0; i < converted.length; i++) {
+      final item = converted[i]
+      final title = item["title"]
+
+      if (Converter.looksPreferred(title)) {
+        tierPreferred.add(item)
+      } else {
+        if (Converter.looksLikeVideoClip(title)) {
+          tierClip.add(item)
+        } else {
+          tierNeutral.add(item)
+        }
+      }
+    }
+
+    tierPreferred.addAll(tierNeutral)
+    tierPreferred.addAll(tierClip)
+    return tierPreferred
+  }
+
   fun matches(track: Map) -> List {
     final artists = track["artists"].map((a)=> a["name"]).join(", ")
     final hasISRC = track["isrc"] != null && track["isrc"].isNotEmpty;
     final targetDuration = Converter.toSeconds(track["duration"])
-    final rawTarget = track["duration"]
 
     return yt.search(
       hasISRC ? track["isrc"] : "${track["name"]} ${artists}"
     ).then((res){
-      var debugResults = []
-      for (var i = 0; i < res.length; i++) {
-        if (i < 3) {
-          final rawCandidate = res[i]["duration"]
-          debugResults.add({
-            "id": res[i]["id"],
-            "title": res[i]["title"],
-            "artists": [res[i]["author"]],
-            "duration": res[i]["duration"],
-            "thumbnail": res[i]["thumbnail"],
-            "externalUri": "https://youtube.com/watch?v=${res[i]["id"]}#DEBUG_rawTarget=${rawTarget}_rawCand=${rawCandidate}",
-          }.toJson())
-        }
+      if(res.isEmpty && hasISRC) {
+        return yt.search(
+          "${track["name"]} ${artists}"
+        ).then((res)=> rankResults(res, targetDuration))
       }
-      return debugResults
+      return rankResults(res, targetDuration)
     })
   }
 
