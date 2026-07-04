@@ -76,8 +76,87 @@ class Converter {
     return false
   }
 
-  // Простая сортировка по длине заголовка (короче — выше), без .sort()
-  static fun sortByTitleLength(items: List) -> List {
+  // Слова, указывающие на изменённую/альтернативную версию трека.
+  // Каждое найденное слово добавляет штраф.
+  static fun keywordPenalty(title) -> num {
+    if (title == null) {
+      return 0
+    }
+    final lower = title.toLowerCase()
+    var penalty = 0
+
+    if (lower.contains("acoustic")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("guitar")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("piano")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("live")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("remix")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("cover")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("instrumental")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("extended")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("slowed")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("sped up")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("nightcore")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("mashup")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("tiktok")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("edit")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("mix")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("version")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("reaction")) {
+      penalty = penalty + 1
+    }
+    if (lower.contains("karaoke")) {
+      penalty = penalty + 1
+    }
+
+    return penalty
+  }
+
+  // Общий счёт для сортировки: штрафные слова весят намного больше,
+  // чем длина заголовка — она используется только как "добивочный" критерий
+  // при равном количестве штрафов.
+  static fun rankScore(item) -> num {
+    final title = item["title"]
+    var length = 0
+    if (title != null) {
+      length = title.length
+    }
+    return keywordPenalty(title) * 1000 + length
+  }
+
+  // Простая сортировка по числовому score (по возрастанию), без .sort()
+  static fun sortByScore(items: List) -> List {
     final n = items.length
     var used = []
     for (var i = 0; i < n; i++) {
@@ -87,22 +166,19 @@ class Converter {
     var result = []
     for (var k = 0; k < n; k++) {
       var minIndex = -1
-      var minLen = -1
+      var minScore = -1
 
       for (var j = 0; j < n; j++) {
         if (used[j] == false) {
-          var len = 0
-          if (items[j]["title"] != null) {
-            len = items[j]["title"].length
-          }
+          var score = rankScore(items[j])
 
           if (minIndex == -1) {
             minIndex = j
-            minLen = len
+            minScore = score
           } else {
-            if (len < minLen) {
+            if (score < minScore) {
               minIndex = j
-              minLen = len
+              minScore = score
             }
           }
         }
@@ -150,9 +226,9 @@ class AudioSourceEndpoint {
       }
     }
 
-    tierPreferred = Converter.sortByTitleLength(tierPreferred)
-    tierNeutral = Converter.sortByTitleLength(tierNeutral)
-    tierClip = Converter.sortByTitleLength(tierClip)
+    tierPreferred = Converter.sortByScore(tierPreferred)
+    tierNeutral = Converter.sortByScore(tierNeutral)
+    tierClip = Converter.sortByScore(tierClip)
 
     tierPreferred.addAll(tierNeutral)
     tierPreferred.addAll(tierClip)
